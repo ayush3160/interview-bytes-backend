@@ -14,6 +14,7 @@ import (
 	"github.com/ayush3160/interview-bytes-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/websocket/v2"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -109,6 +110,12 @@ func Start() {
 	appSvc := handlers.NewUserHandler(logger, userCollection)
 	app.Post("/register", appSvc.CreateUser)
 	app.Post("/login", appSvc.Login)
+
+	// Defining routes for room's
+	roomSvc := handlers.NewRoomHandler(logger)
+	app.Post("/create-room", utils.AuthMiddleware, roomSvc.CreateRoom)
+	app.Post("/join-room", roomSvc.CanAccessRoom)
+	app.Get("ws/:room_id", websocket.New(roomSvc.JoinRoom))
 
 	app.Get("/user", utils.AuthMiddleware, func(c *fiber.Ctx) error {
 		username := c.Locals("username").(string)

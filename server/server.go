@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ayush3160/interview-bytes-backend/pkg/handlers"
 	"github.com/ayush3160/interview-bytes-backend/pkg/models"
+	"github.com/ayush3160/interview-bytes-backend/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
@@ -67,19 +69,19 @@ func Start() {
 
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		mongoURI = "mongodb://localhost:27017"
+		mongoURI = "mongodb://172.25.224.1:27017"
 	}
 
-	ctx , cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client , err := mongo.Connect(ctx,options.Client().ApplyURI(mongoURI))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		logger.Error("Error connecting to MongoDB", zap.Error(err))
 		return
 	}
 
-	if err = client.Ping(ctx, nil) ; err != nil {
+	if err = client.Ping(ctx, nil); err != nil {
 		logger.Error("Error connecting to MongoDB", zap.Error(err))
 		return
 	}
@@ -95,15 +97,22 @@ func Start() {
 		database = "interview-bytes"
 	}
 
-	_ = client.Database(database)
+	mongoDb := client.Database(database)
+
+	userCollection := mongoDb.Collection("users")
 
 	app := fiber.New()
 
 	app.Use(cors.New())
 
-	app.Get("/", func(c *fiber.Ctx) error {
-		logger.Info("Request received", zap.String("path", c.Path()))
-		return c.SendString("Hello, World!")
+	// Defining routes for user's
+	appSvc := handlers.NewUserHandler(logger, userCollection)
+	app.Post("/register", appSvc.CreateUser)
+	app.Post("/login", appSvc.Login)
+
+	app.Get("/user", utils.AuthMiddleware, func(c *fiber.Ctx) error {
+		username := c.Locals("username").(string)
+		return c.Status(fiber.StatusOK).SendString("Hello " + username)
 	})
 
 	logger.Info("Server is listening on", zap.String("port", port))
